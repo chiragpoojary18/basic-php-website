@@ -10,6 +10,7 @@ pipeline {
         PID_FILE       = "/tmp/${APP_NAME}.pid"
         PACKAGE_NAME   = "${APP_NAME}-${BUILD_NUMBER}.tar.gz"
         ARCHIVE_DIR    = "/var/www/releases"
+        DOCKER_HUB_USER = "chiragpoojary1811"   // ← change this
     }
 
     options {

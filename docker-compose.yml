@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  php-website:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: basic-php-website
+    ports:
+      - "8086:80"
+    restart: unless-stopped
