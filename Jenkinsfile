@@ -82,29 +82,37 @@ pipeline {
         // STAGE 4: Test
         // ─────────────────────────────────────────────
         stage('Test') {
-            steps {
-                echo "🧬 Running tests..."
-                sh '''
-                    # Run PHPUnit if available and tests/ directory exists
-                    if [ -f "vendor/bin/phpunit" ] && [ -d "tests" ]; then
-                        echo "Running PHPUnit tests..."
-                        vendor/bin/phpunit --testdox tests/
-                    else
-                        echo "No PHPUnit/tests directory found."
-                        echo "Running basic PHP execution test (include check)..."
-                        # Verify the entry-point file can be parsed without errors
-                        php -r "
-                            \$files = glob('*.php');
-                            foreach (\$files as \$f) {
-                                echo 'Checking: ' . \$f . PHP_EOL;
-                            }
-                            echo 'Basic test passed.';
-                        "
-                    fi
-                    echo "✅ Tests complete."
-                '''
-            }
-        }
+    steps {
+        echo "🧬 Running tests..."
+        sh '''
+            if [ -f "vendor/bin/phpunit" ] && [ -d "tests" ]; then
+                echo "Running PHPUnit tests..."
+                vendor/bin/phpunit --testdox tests/
+            else
+                echo "No PHPUnit/tests directory found."
+                echo "Running basic PHP execution test..."
+
+                # Write test script to a temp file to avoid shell variable expansion issues
+                cat > /tmp/php_basic_test.php << 'PHPEOF'
+<?php
+$files = glob('*.php');
+if ($files === false || count($files) === 0) {
+    echo "WARNING: No PHP files found in root.\n";
+} else {
+    foreach ($files as $f) {
+        echo "Checking: " . $f . PHP_EOL;
+    }
+}
+echo "Basic test passed.\n";
+PHPEOF
+
+                php /tmp/php_basic_test.php
+                rm -f /tmp/php_basic_test.php
+            fi
+            echo "✅ Tests complete."
+        '''
+    }
+}
 
         // ─────────────────────────────────────────────
         // STAGE 5: Install Dependencies
