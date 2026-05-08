@@ -10,7 +10,6 @@ pipeline {
         PID_FILE       = "/tmp/${APP_NAME}.pid"
         PACKAGE_NAME   = "${APP_NAME}-${BUILD_NUMBER}.tar.gz"
         ARCHIVE_DIR    = "/var/www/releases"
-        DOCKER_HUB_USER = "chiragpoojary1811"   // ← change this
     }
 
     options {
@@ -82,7 +81,10 @@ pipeline {
         // ─────────────────────────────────────────────
         // STAGE 4: Test
         // ─────────────────────────────────────────────
-        stage('Test') {
+        // ─────────────────────────────────────────────
+// STAGE 4: Test
+// ─────────────────────────────────────────────
+stage('Test') {
     steps {
         echo "🧬 Running tests..."
         sh '''
@@ -159,33 +161,38 @@ PHPEOF
         // STAGE 7: Deploy
         // ─────────────────────────────────────────────
         stage('Deploy') {
-    steps {
-        echo "🚀 Deploying application..."
-        sh '''
-            # Stop any existing server
-            if [ -f "${PID_FILE}" ]; then
-                OLD_PID=$(cat ${PID_FILE})
-                kill "$OLD_PID" 2>/dev/null || true
-                sleep 1
-            fi
-            fuser -k ${APP_PORT}/tcp 2>/dev/null || true
-            sleep 1
+            steps {
+                echo "🚀 Deploying application to ${DEPLOY_DIR}..."
+                sh '''
+                    # Stop any previously running PHP dev server for this app
+                    if [ -f "${PID_FILE}" ]; then
+                        OLD_PID=$(cat ${PID_FILE})
+                        if kill -0 "$OLD_PID" 2>/dev/null; then
+                            echo "Stopping existing server (PID: $OLD_PID)..."
+                            kill "$OLD_PID"
+                            sleep 2
+                        fi
+                        rm -f "${PID_FILE}"
+                    fi
 
-            # Deploy files
-            mkdir -p ${DEPLOY_DIR}
-            tar -xzf ${ARCHIVE_DIR}/${PACKAGE_NAME} -C ${DEPLOY_DIR}
-            echo "✅ Files deployed to ${DEPLOY_DIR}"
+                    # Also kill any process holding the port (safety net)
+                    fuser -k ${APP_PORT}/tcp 2>/dev/null || true
+                    sleep 1
 
-            # Start PHP server fully detached from Jenkins process tree
-            setsid nohup php -S 0.0.0.0:${APP_PORT} -t ${DEPLOY_DIR} \
-                > /tmp/basic-php-website-server.log 2>&1 < /dev/null &
-            
-            echo $! > ${PID_FILE}
-            sleep 3
-            echo "✅ Server started (PID: $(cat ${PID_FILE}))"
-        '''
-    }
-}
+                    # Deploy: extract package to deploy directory
+                    mkdir -p ${DEPLOY_DIR}
+                    tar -xzf ${ARCHIVE_DIR}/${PACKAGE_NAME} -C ${DEPLOY_DIR}
+                    echo "✅ Application files deployed to ${DEPLOY_DIR}"
+
+                    # Start PHP built-in server in background
+                    nohup php -S 0.0.0.0:${APP_PORT} -t ${DEPLOY_DIR} > /tmp/${APP_NAME}-server.log 2>&1 &
+                    echo $! > ${PID_FILE}
+
+                    echo "✅ PHP server started on port ${APP_PORT} (PID: $(cat ${PID_FILE}))"
+                    sleep 3
+                '''
+            }
+        }
 
         // ─────────────────────────────────────────────
         // STAGE 8: Health Check
